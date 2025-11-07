@@ -6,12 +6,15 @@ import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # ====== BACA TOKEN DAN CHAT ID DARI ENVIRONMENT VARIABLE (Render) ======
-TOKEN = os.getenv("BOT_TOKEN")  # Ambil dari Render Environment
-CHAT_ID = os.getenv("CHAT_ID")  # Ambil dari Render Environment
+TOKEN = os.getenv("BOT_TOKEN")   # Nama variabel persis di Render Environment
+CHAT_ID = os.getenv("CHAT_ID")   # Nama variabel persis di Render Environment
 
-# ====== CEK VALIDASI TOKEN ======
+# ====== CEK VALIDASI TOKEN DAN CHAT ID ======
 if not TOKEN or ":" not in TOKEN:
     raise SystemExit("❌ BOT_TOKEN kosong atau salah format. Cek Environment Variables di Render!")
+
+if not CHAT_ID:
+    raise SystemExit("❌ CHAT_ID kosong. Pastikan sudah diisi di Render Environment!")
 
 # ====== COMMAND /start ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
