@@ -30,7 +30,7 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ====== OTOMATIS POST SETIAP JAM ======
 async def auto_post(context: ContextTypes.DEFAULT_TYPE):
-    chat_id = os.getenv("CHAT_ID")
+    chat_id = os.getenv("8245997756")
     if chat_id:
         keyboard = [[InlineKeyboardButton("🌐 Kunjungi Website", url="https://pdglabs.xyz/")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
