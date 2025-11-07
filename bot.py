@@ -3,9 +3,15 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import os
 import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# ====== TOKEN BOT TELEGRAM ======
-TOKEN = os.getenv("8391887846:AAFiKN5QKiefslJmCRR_krk0yaXBrdiC7jo")  # render akan menyimpannya di Environment Variable
+# ====== BACA TOKEN DAN CHAT ID DARI ENVIRONMENT VARIABLE (Render) ======
+TOKEN = os.getenv("BOT_TOKEN")  # Ambil dari Render Environment
+CHAT_ID = os.getenv("CHAT_ID")  # Ambil dari Render Environment
+
+# ====== CEK VALIDASI TOKEN ======
+if not TOKEN or ":" not in TOKEN:
+    raise SystemExit("❌ BOT_TOKEN kosong atau salah format. Cek Environment Variables di Render!")
 
 # ====== COMMAND /start ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -30,15 +36,17 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ====== OTOMATIS POST SETIAP JAM ======
 async def auto_post(context: ContextTypes.DEFAULT_TYPE):
-    chat_id = os.getenv("8245997756")
-    if chat_id:
+    if CHAT_ID:
         keyboard = [[InlineKeyboardButton("🌐 Kunjungi Website", url="https://pdglabs.xyz/")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await context.bot.send_message(
-            chat_id=chat_id,
+            chat_id=CHAT_ID,
             text="📰 Auto-post dari PDGLabs!\nKunjungi website resmi kami untuk update terbaru.",
             reply_markup=reply_markup
         )
+        print(f"✅ Pesan otomatis terkirim ke {CHAT_ID}")
+    else:
+        print("⚠️ CHAT_ID tidak ditemukan. Cek Environment Variables di Render.")
 
 # ====== FUNGSI UTAMA ======
 async def main():
@@ -47,7 +55,6 @@ async def main():
     app.add_handler(CommandHandler("post", post))
 
     # Auto-post setiap 1 jam
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
     scheduler = AsyncIOScheduler()
     scheduler.add_job(auto_post, "interval", hours=1, args=[ContextTypes.DEFAULT_TYPE])
     scheduler.start()
