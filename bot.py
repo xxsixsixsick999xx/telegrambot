@@ -55,6 +55,7 @@ app.add_handler(CommandHandler("post", post))
 async def webhook_handler(request):
     data = await request.json()
     await app.update_queue.put(Update.de_json(data, app.bot))
+    print("📩 Pesan diterima dari Telegram.")
     return web.Response(text="✅ Update diterima")
 
 # ===== ROUTE HEALTH CHECK =====
@@ -81,12 +82,9 @@ async def main():
 
     print(f"✅ PDGLabs Bot sedang berjalan di port {PORT} dan webhook aktif di {webhook_url}")
 
-    # Tetap hidup (Render butuh loop aktif)
-    try:
-        await asyncio.Event().wait()
-    except (KeyboardInterrupt, SystemExit):
-        print("🛑 Bot dihentikan manual.")
+    # Tetap hidup terus agar Render tidak mematikan container
+    while True:
+        await asyncio.sleep(3600)  # tidur 1 jam lalu lanjut lagi (loop infinite)
 
-# Jalankan event loop
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
+# Jalankan event loop utama
+asyncio.get_event_loop().run_until_complete(main())
