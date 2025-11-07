@@ -54,12 +54,14 @@ async def auto_post(context: ContextTypes.DEFAULT_TYPE):
 # ====== FUNGSI UTAMA ======
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
+
+    # Handler command
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("post", post))
 
-    # Auto-post setiap 1 jam
+    # Scheduler untuk auto-post
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(auto_post, "interval", hours=1, args=[ContextTypes.DEFAULT_TYPE])
+    scheduler.add_job(auto_post, "interval", hours=1, args=[app.bot])  # ✅ fix args
     scheduler.start()
 
     print("✅ Bot PDGLabs sedang berjalan di Render...")
