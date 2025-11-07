@@ -12,8 +12,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # ===== KONFIGURASI DASAR =====
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")        # ID channel, contoh: -100xxxx
-ADMIN_ID = os.getenv("ADMIN_ID")      # ID kamu sendiri
+CHAT_ID = os.getenv("CHAT_ID")        # ID channel
+ADMIN_ID = os.getenv("ADMIN_ID")      # ID admin
 DATA_FILE = "queue.json"
 
 # ===== LOAD & SAVE DATA =====
@@ -31,8 +31,6 @@ queue_data = load_queue()
 
 # ====== /start ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_user.id) != ADMIN_ID:
-        return await update.message.reply_text("❌ Anda tidak diizinkan menggunakan bot ini.")
     await update.message.reply_text(
         "👋 Halo Admin PDGLabs!\n\n"
         "Gunakan:\n"
@@ -41,8 +39,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔁 /repeat HH:MM → Jadwal harian tetap\n"
         "📋 /list → Lihat semua jadwal\n"
         "📅 /next → Lihat postingan terdekat\n"
-        "🗑️ /delete N → Hapus jadwal ke-N"
+        "🗑️ /delete N → Hapus jadwal ke-N\n"
+        "🆔 /id → Lihat ID kamu"
     )
+
+# ====== /id ======
+async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    await update.message.reply_text(f"🆔 ID Telegram kamu adalah: `{user_id}`", parse_mode="Markdown")
 
 # ====== UPLOAD KONTEN ======
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,7 +67,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# ====== /schedule HH:MM ======
+# ====== /schedule ======
 async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) != ADMIN_ID:
         return await update.message.reply_text("❌ Anda bukan admin bot ini.")
@@ -72,7 +76,7 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         time_str = context.args[0]
-        datetime.datetime.strptime(time_str, "%H:%M")  # validasi waktu
+        datetime.datetime.strptime(time_str, "%H:%M")
     except:
         return await update.message.reply_text("⚠️ Format waktu salah. Contoh: `/schedule 14:30`", parse_mode="Markdown")
 
@@ -88,9 +92,8 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_queue(queue_data)
 
     await update.message.reply_text(f"⏰ Jadwal posting sekali ditambahkan untuk {time_str}.")
-    print(f"📅 Jadwal baru ditambahkan: {time_str}")
 
-# ====== /repeat HH:MM ======
+# ====== /repeat ======
 async def repeat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) != ADMIN_ID:
         return await update.message.reply_text("❌ Anda bukan admin bot ini.")
@@ -115,7 +118,6 @@ async def repeat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_queue(queue_data)
 
     await update.message.reply_text(f"🔁 Jadwal harian tetap ditambahkan untuk {time_str}.")
-    print(f"♻️ Jadwal harian baru: {time_str}")
 
 # ====== /list ======
 async def list_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -123,7 +125,6 @@ async def list_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("❌ Anda bukan admin bot ini.")
 
     msg = "📋 *Daftar Jadwal:*\n\n"
-
     if not queue_data["scheduled"] and not queue_data["repeat"]:
         return await update.message.reply_text("📭 Tidak ada jadwal.", parse_mode="Markdown")
 
@@ -131,10 +132,9 @@ async def list_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "🕒 *Sekali:*\n"
         for i, item in enumerate(queue_data["scheduled"], 1):
             msg += f"{i}. {item['schedule']} — {item['caption'][:40]}...\n"
-        msg += "\n"
 
     if queue_data["repeat"]:
-        msg += "🔁 *Harian:*\n"
+        msg += "\n🔁 *Harian:*\n"
         for i, item in enumerate(queue_data["repeat"], 1):
             msg += f"{i}. {item['schedule']} — {item['caption'][:40]}...\n"
 
@@ -144,15 +144,12 @@ async def list_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def next_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) != ADMIN_ID:
         return await update.message.reply_text("❌ Anda bukan admin bot ini.")
-    
-    times = [item['schedule'] for item in queue_data["scheduled"]] + [item['schedule'] for item in queue_data["repeat"]]
+    times = [item["schedule"] for item in queue_data["scheduled"]] + [item["schedule"] for item in queue_data["repeat"]]
     if not times:
         return await update.message.reply_text("📭 Tidak ada postingan dijadwalkan.")
+    await update.message.reply_text(f"📅 Jadwal terdekat: {min(times)}")
 
-    next_time = min(times)
-    await update.message.reply_text(f"📅 Jadwal posting terdekat: {next_time}")
-
-# ====== /delete N ======
+# ====== /delete ======
 async def delete_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) != ADMIN_ID:
         return await update.message.reply_text("❌ Anda bukan admin bot ini.")
@@ -173,18 +170,17 @@ async def auto_post(app):
     now = datetime.datetime.now().strftime("%H:%M")
     to_remove = []
 
-    # Jadwal sekali
+    # Sekali
     for item in queue_data["scheduled"]:
         if item["schedule"] == now:
             await send_to_channel(app, item)
             to_remove.append(item)
 
-    # Jadwal harian
+    # Harian
     for item in queue_data["repeat"]:
         if item["schedule"] == now:
             await send_to_channel(app, item)
 
-    # Hapus yang sudah dikirim (sekali)
     for item in to_remove:
         queue_data["scheduled"].remove(item)
     if to_remove:
@@ -195,7 +191,6 @@ async def send_to_channel(app, item):
     try:
         keyboard = [[InlineKeyboardButton("🌐 Website", url="https://pdglabs.xyz/")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-
         await app.bot.send_photo(
             chat_id=CHAT_ID,
             photo=item["photo_id"],
@@ -203,9 +198,7 @@ async def send_to_channel(app, item):
             parse_mode="Markdown",
             reply_markup=reply_markup
         )
-
         await app.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Postingan {item['schedule']} terkirim ke channel.")
-        print(f"✅ Postingan {item['schedule']} terkirim.")
     except Exception as e:
         print(f"⚠️ Gagal kirim postingan: {e}")
 
@@ -214,6 +207,7 @@ async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("id", get_id))
     app.add_handler(CommandHandler("upload", upload))
     app.add_handler(CommandHandler("schedule", schedule))
     app.add_handler(CommandHandler("repeat", repeat))
@@ -226,7 +220,7 @@ async def main():
     scheduler.add_job(auto_post, "interval", minutes=1, args=[app])
     scheduler.start()
 
-    print("✅ PDGLabs Scheduler Pro+ sedang berjalan di Render...")
+    print("✅ PDGLabs Scheduler Pro+ (with /id) berjalan di Render...")
     await app.run_polling()
 
 # ====== FIX LOOP UNTUK RENDER ======
