@@ -215,7 +215,6 @@ async def main():
     scheduler.add_job(auto_post, "interval", minutes=1, args=[app])
     scheduler.start()
 
-    # Jalankan webhook di Render
     webhook_url = f"https://{RENDER_HOSTNAME}/{TOKEN}"
     print(f"🌐 Webhook aktif di {webhook_url}")
     await app.run_webhook(
@@ -225,7 +224,12 @@ async def main():
         webhook_url=webhook_url
     )
 
-# ====== JALANKAN BOT ======
+# ====== FIX LOOP UNTUK RENDER ======
 if __name__ == "__main__":
     nest_asyncio.apply()
-    asyncio.run(main())
+    try:
+        loop = asyncio.get_event_loop()
+        loop.create_task(main())
+        loop.run_forever()
+    except (KeyboardInterrupt, SystemExit):
+        print("🛑 Bot dihentikan.")
