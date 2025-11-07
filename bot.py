@@ -15,6 +15,8 @@ TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")        # ID channel
 ADMIN_ID = os.getenv("ADMIN_ID")      # ID admin
 DATA_FILE = "queue.json"
+PORT = int(os.environ.get("PORT", 8080))
+RENDER_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 
 # ===== LOAD & SAVE DATA =====
 def load_queue():
@@ -46,19 +48,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ====== /id ======
 async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    await update.message.reply_text(f"🆔 ID Telegram kamu adalah: `{user_id}`", parse_mode="Markdown")
+    await update.message.reply_text(f"🆔 ID Telegram kamu: `{user_id}`", parse_mode="Markdown")
 
-# ====== UPLOAD KONTEN ======
+# ====== UPLOAD ======
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) != ADMIN_ID:
         return await update.message.reply_text("❌ Anda bukan admin bot ini.")
-
     if not update.message.photo:
         return await update.message.reply_text("📷 Kirim gambar dengan caption dan link!")
 
     photo = update.message.photo[-1].file_id
     caption = update.message.caption or "Tanpa caption"
-
     queue_data["pending"] = {"photo_id": photo, "caption": caption}
     save_queue(queue_data)
 
@@ -90,7 +90,6 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     queue_data["scheduled"].append(new_item)
     del queue_data["pending"]
     save_queue(queue_data)
-
     await update.message.reply_text(f"⏰ Jadwal posting sekali ditambahkan untuk {time_str}.")
 
 # ====== /repeat ======
@@ -116,14 +115,12 @@ async def repeat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     queue_data["repeat"].append(new_item)
     del queue_data["pending"]
     save_queue(queue_data)
-
     await update.message.reply_text(f"🔁 Jadwal harian tetap ditambahkan untuk {time_str}.")
 
 # ====== /list ======
 async def list_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) != ADMIN_ID:
         return await update.message.reply_text("❌ Anda bukan admin bot ini.")
-
     msg = "📋 *Daftar Jadwal:*\n\n"
     if not queue_data["scheduled"] and not queue_data["repeat"]:
         return await update.message.reply_text("📭 Tidak ada jadwal.", parse_mode="Markdown")
@@ -170,13 +167,11 @@ async def auto_post(app):
     now = datetime.datetime.now().strftime("%H:%M")
     to_remove = []
 
-    # Sekali
     for item in queue_data["scheduled"]:
         if item["schedule"] == now:
             await send_to_channel(app, item)
             to_remove.append(item)
 
-    # Harian
     for item in queue_data["repeat"]:
         if item["schedule"] == now:
             await send_to_channel(app, item)
@@ -202,7 +197,7 @@ async def send_to_channel(app, item):
     except Exception as e:
         print(f"⚠️ Gagal kirim postingan: {e}")
 
-# ====== FUNGSI UTAMA ======
+# ====== MAIN (WEBHOOK MODE) ======
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -220,10 +215,17 @@ async def main():
     scheduler.add_job(auto_post, "interval", minutes=1, args=[app])
     scheduler.start()
 
-    print("✅ PDGLabs Scheduler Pro+ (with /id) berjalan di Render...")
-    await app.run_polling()
+    # Jalankan webhook di Render
+    webhook_url = f"https://{RENDER_HOSTNAME}/{TOKEN}"
+    print(f"🌐 Webhook aktif di {webhook_url}")
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=webhook_url
+    )
 
-# ====== FIX LOOP UNTUK RENDER ======
+# ====== JALANKAN BOT ======
 if __name__ == "__main__":
     nest_asyncio.apply()
     asyncio.run(main())
