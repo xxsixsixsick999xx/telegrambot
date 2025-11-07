@@ -7,7 +7,7 @@ from aiohttp import web
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# Terapkan patch event loop agar tidak error di Render
+# Terapkan patch agar event loop tidak error di Render
 nest_asyncio.apply()
 
 # ===== KONFIGURASI ENVIRONMENT =====
@@ -28,7 +28,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Maaf, kamu bukan admin PDGLabs.")
         return
     await update.message.reply_text(
-        "👋 Halo Admin PDGLabs!\nBot aktif dan siap digunakan.\n\nKetik /post untuk melihat contoh posting otomatis."
+        "👋 Halo Admin PDGLabs!\n"
+        "Bot aktif dan siap digunakan.\n\n"
+        "Ketik /post untuk melihat contoh posting otomatis."
     )
 
 # ===== HANDLER /post =====
@@ -44,7 +46,7 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
 
-# ===== APP TELEGRAM =====
+# ===== APLIKASI TELEGRAM =====
 app = Application.builder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("post", post))
@@ -67,7 +69,7 @@ async def main():
     set_hook = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}")
     print("🌐 Webhook set result:", set_hook.json())
 
-    # Jalankan web server untuk menerima update
+    # Jalankan web server untuk menerima update Telegram
     app_web = web.Application()
     app_web.router.add_post(f"/{TOKEN}", webhook_handler)
     app_web.router.add_get("/", healthcheck)
@@ -78,7 +80,12 @@ async def main():
     await site.start()
 
     print(f"✅ PDGLabs Bot sedang berjalan di port {PORT} dan webhook aktif di {webhook_url}")
-    await asyncio.Event().wait()  # tetap hidup
+
+    # Tetap hidup (Render butuh loop aktif)
+    try:
+        await asyncio.Event().wait()
+    except (KeyboardInterrupt, SystemExit):
+        print("🛑 Bot dihentikan manual.")
 
 # Jalankan event loop
 loop = asyncio.get_event_loop()
