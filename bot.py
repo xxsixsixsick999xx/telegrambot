@@ -38,18 +38,18 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
 
 # ====== OTOMATIS POST SETIAP JAM ======
-async def auto_post(context: ContextTypes.DEFAULT_TYPE):
-    if CHAT_ID:
+async def auto_post(app):
+    try:
         keyboard = [[InlineKeyboardButton("🌐 Kunjungi Website", url="https://pdglabs.xyz/")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await context.bot.send_message(
+        await app.bot.send_message(
             chat_id=CHAT_ID,
             text="📰 Auto-post dari PDGLabs!\nKunjungi website resmi kami untuk update terbaru.",
             reply_markup=reply_markup
         )
         print(f"✅ Pesan otomatis terkirim ke {CHAT_ID}")
-    else:
-        print("⚠️ CHAT_ID tidak ditemukan. Cek Environment Variables di Render.")
+    except Exception as e:
+        print(f"⚠️ Gagal kirim pesan otomatis: {e}")
 
 # ====== FUNGSI UTAMA ======
 async def main():
@@ -59,9 +59,9 @@ async def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("post", post))
 
-    # Scheduler untuk auto-post
+    # Scheduler auto-post
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(auto_post, "interval", hours=1, args=[app.bot])  # ✅ fix args
+    scheduler.add_job(auto_post, "interval", hours=1, args=[app])  # ✅ kirim app, bukan context
     scheduler.start()
 
     print("✅ Bot PDGLabs sedang berjalan di Render...")
