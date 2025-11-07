@@ -5,21 +5,17 @@ import asyncio
 import requests
 import logging
 from aiohttp import web
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application,
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     ContextTypes,
-    filters,
 )
 
-# ===== Patch loop =====
+# ===== Patch event loop untuk Render =====
 nest_asyncio.apply()
 
-# ===== KONFIGURASI =====
+# ===== KONFIGURASI ENVIRONMENT =====
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 ADMIN_ID = os.getenv("ADMIN_ID", CHAT_ID)
@@ -34,16 +30,17 @@ if not TOKEN or ":" not in TOKEN:
 if not CHAT_ID:
     raise SystemExit("❌ CHAT_ID belum diisi di Render Environment!")
 
-# ===== FUNGSI HANDLER =====
+# ===== HANDLER /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f"Command /start diterima dari {update.effective_chat.id}")
     await update.message.reply_text(
         "👋 Halo! Bot PDGLabs aktif dan siap digunakan.\n\n"
-        "Perintah yang tersedia:\n"
+        "Perintah tersedia:\n"
         "• /post — kirim posting cepat\n"
         "• /id — lihat ID Telegram kamu"
     )
+    logger.info(f"✅ /start dari {update.effective_chat.id}")
 
+# ===== HANDLER /post =====
 async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🌐 Kunjungi Website", url="https://pdglabs.xyz/")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -54,8 +51,9 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🕒 {datetime.datetime.now().strftime('%d %B %Y, %H:%M')}"
     )
     await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode="Markdown")
-    logger.info("✅ Pesan /post dikirim ke pengguna.")
+    logger.info("✅ Pesan /post terkirim")
 
+# ===== HANDLER /id =====
 async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🆔 ID Telegram kamu: {update.message.chat_id}")
 
@@ -69,8 +67,11 @@ application.add_handler(CommandHandler("id", get_id))
 async def webhook_handler(request):
     data = await request.json()
     update = Update.de_json(data, application.bot)
-    await application.process_update(update)
-    logger.info("📩 Update diterima dan diproses oleh handler.")
+    try:
+        await application.process_update(update)
+        logger.info("📩 Update diterima dan diproses handler.")
+    except Exception as e:
+        logger.error(f"❌ Error dalam process_update: {e}")
     return web.Response(text="✅ OK", status=200)
 
 # ===== HEALTHCHECK =====
@@ -84,7 +85,12 @@ async def main():
     result = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}")
     logger.info(f"🌐 Webhook set result: {result.json()}")
 
-    # Jalankan web server aiohttp
+    # ===== Inisialisasi dan start Application (WAJIB) =====
+    await application.initialize()
+    await application.start()
+    logger.info("✅ Application Telegram berhasil diinisialisasi dan berjalan.")
+
+    # ===== Jalankan server aiohttp =====
     app_web = web.Application()
     app_web.router.add_post(f"/{TOKEN}", webhook_handler)
     app_web.router.add_get("/", healthcheck)
@@ -97,17 +103,17 @@ async def main():
     logger.info(f"✅ Bot PDGLabs berjalan di port {PORT}")
     logger.info("📡 Menunggu pesan Telegram...")
 
-    while True:
-        await asyncio.sleep(60)
-
-# ===== JALANKAN BOT =====
-if __name__ == "__main__":
+    # ===== Loop agar tetap hidup =====
     try:
-        asyncio.run(main())
+        while True:
+            await asyncio.sleep(60)
     except (KeyboardInterrupt, SystemExit):
         logger.warning("🛑 Bot dihentikan manual.")
     finally:
-        import time
-        logger.info("♻️ Menjaga koneksi tetap hidup di Render...")
-        while True:
-            time.sleep(600)
+        await application.stop()
+        await application.shutdown()
+        logger.info("👋 Bot PDGLabs ditutup dengan aman.")
+
+# ===== START =====
+if __name__ == "__main__":
+    asyncio.run(main())
