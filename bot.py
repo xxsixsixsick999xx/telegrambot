@@ -3,13 +3,14 @@ import json
 import datetime
 import asyncio
 import nest_asyncio
+import requests
+from aiohttp import web
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     filters, ContextTypes
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiohttp import web  # ✅ Untuk auto HTTP binding di Render
 
 # ===== KONFIGURASI DASAR =====
 TOKEN = os.getenv("BOT_TOKEN")
@@ -64,7 +65,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_queue(queue_data)
 
     await update.message.reply_text(
-        "✅ Konten disimpan sementara.\nKirim `/schedule HH:MM` atau `/repeat HH:MM` untuk jadwal.",
+        "✅ Konten disimpan sementara.\nKirim `/schedule HH:MM` atau `/repeat HH:MM` untuk menjadwalkan.",
         parse_mode="Markdown"
     )
 
@@ -189,10 +190,11 @@ async def send_to_channel(app, item):
     except Exception as e:
         print(f"⚠️ Gagal kirim postingan: {e}")
 
-# ====== MAIN (WEBHOOK MODE + HTTP BINDING) ======
+# ====== MAIN (WEBHOOK MODE + AUTO REGISTER) ======
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
+    # Tambah handler perintah
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("id", get_id))
     app.add_handler(CommandHandler("schedule", schedule))
@@ -201,23 +203,32 @@ async def main():
     app.add_handler(CommandHandler("delete", delete_schedule))
     app.add_handler(MessageHandler(filters.PHOTO, upload))
 
+    # Scheduler auto post
     scheduler = AsyncIOScheduler()
     scheduler.add_job(auto_post, "interval", minutes=1, args=[app])
     scheduler.start()
 
+    # ====== AUTO REGISTER WEBHOOK ======
     webhook_url = f"https://{RENDER_HOSTNAME}/{TOKEN}"
-    print(f"🌐 Webhook aktif di {webhook_url}")
+    try:
+        response = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}")
+        print(f"🔗 Webhook auto-register: {response.json()}")
+    except Exception as e:
+        print(f"⚠️ Gagal auto-register webhook: {e}")
 
-    # Jalankan webhook dan HTTP server agar Render bisa mendeteksi port
+    # ====== Jalankan HTTP server & Webhook ======
     async def handle(request):
-        return web.Response(text="PDGLabs Bot is running 🚀")
+        return web.Response(text="✅ PDGLabs Bot aktif dan webhook OK!")
+
     app_web = web.Application()
     app_web.router.add_get("/", handle)
+    app_web.router.add_post(f"/{TOKEN}", handle)  # FIX: Telegram POST route
     runner = web.AppRunner(app_web)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
+    print(f"🌐 Webhook aktif di {webhook_url}")
     await app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
