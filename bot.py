@@ -9,14 +9,15 @@ from telegram.ext import (
     filters, ContextTypes
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiohttp import web  # ✅ Untuk auto HTTP binding di Render
 
 # ===== KONFIGURASI DASAR =====
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")        # ID channel
-ADMIN_ID = os.getenv("ADMIN_ID")      # ID admin
+CHAT_ID = os.getenv("CHAT_ID")
+ADMIN_ID = os.getenv("ADMIN_ID")
 DATA_FILE = "queue.json"
 PORT = int(os.environ.get("PORT", 8080))
-RENDER_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+RENDER_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "localhost")
 
 # ===== LOAD & SAVE DATA =====
 def load_queue():
@@ -137,15 +138,6 @@ async def list_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(msg, parse_mode="Markdown")
 
-# ====== /next ======
-async def next_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_user.id) != ADMIN_ID:
-        return await update.message.reply_text("❌ Anda bukan admin bot ini.")
-    times = [item["schedule"] for item in queue_data["scheduled"]] + [item["schedule"] for item in queue_data["repeat"]]
-    if not times:
-        return await update.message.reply_text("📭 Tidak ada postingan dijadwalkan.")
-    await update.message.reply_text(f"📅 Jadwal terdekat: {min(times)}")
-
 # ====== /delete ======
 async def delete_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_user.id) != ADMIN_ID:
@@ -197,17 +189,15 @@ async def send_to_channel(app, item):
     except Exception as e:
         print(f"⚠️ Gagal kirim postingan: {e}")
 
-# ====== MAIN (WEBHOOK MODE) ======
+# ====== MAIN (WEBHOOK MODE + HTTP BINDING) ======
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("id", get_id))
-    app.add_handler(CommandHandler("upload", upload))
     app.add_handler(CommandHandler("schedule", schedule))
     app.add_handler(CommandHandler("repeat", repeat))
     app.add_handler(CommandHandler("list", list_schedule))
-    app.add_handler(CommandHandler("next", next_post))
     app.add_handler(CommandHandler("delete", delete_schedule))
     app.add_handler(MessageHandler(filters.PHOTO, upload))
 
@@ -217,6 +207,17 @@ async def main():
 
     webhook_url = f"https://{RENDER_HOSTNAME}/{TOKEN}"
     print(f"🌐 Webhook aktif di {webhook_url}")
+
+    # Jalankan webhook dan HTTP server agar Render bisa mendeteksi port
+    async def handle(request):
+        return web.Response(text="PDGLabs Bot is running 🚀")
+    app_web = web.Application()
+    app_web.router.add_get("/", handle)
+    runner = web.AppRunner(app_web)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
     await app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
